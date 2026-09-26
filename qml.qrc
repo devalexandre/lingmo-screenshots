@@ -9,5 +9,8 @@
         <file>qml/ResizeBorder.qml</file>
         <file>qml/MoveArea.qml</file>
         <file>images/ocr.svg</file>
+        <file>images/record.svg</file>
+        <file>qml/ModeButton.qml</file>
+        <file>qml/RecordingIndicator.qml</file>
     </qresource>
 </RCC>

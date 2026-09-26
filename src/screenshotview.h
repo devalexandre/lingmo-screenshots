@@ -21,15 +21,20 @@
 #define SCREENSHOTVIEW_H
 
 #include <QQuickView>
+#include <QVariantList>
+
+class ScreenRecorder;
 
 class ScreenshotView : public QQuickView
 {
     Q_OBJECT
     Q_PROPERTY(bool ocrEnabled READ ocrEnabled NOTIFY ocrEnabledChanged)
+    Q_PROPERTY(QVariantList windowRects READ windowRects NOTIFY windowRectsChanged)
 
 public:
-    explicit ScreenshotView(QQuickView *parent = nullptr);
+    explicit ScreenshotView(ScreenRecorder *recorder, QQuickView *parent = nullptr);
     bool ocrEnabled() const;
+    QVariantList windowRects() const;
     void start();
     void delay(int value);
 
@@ -37,15 +42,19 @@ public:
     Q_INVOKABLE void saveFile(QRect rect);
     Q_INVOKABLE void copyToClipboard(QRect rect);
     Q_INVOKABLE void ocr(QRect rect);
+    Q_INVOKABLE void startRecording(QRect rect, bool microphone, bool systemAudio, bool showClicks);
 
     void removeTmpFile();
 
 private:
     bool m_ocrEnabled;
+    ScreenRecorder *m_recorder;
+    QVariantList m_windowRects;
 
 signals:
     void refresh();
     void ocrEnabledChanged();
+    void windowRectsChanged();
 };
 
 #endif // SCREENSHOTVIEW_H

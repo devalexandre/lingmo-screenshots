@@ -14,10 +14,14 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 include(GNUInstallDirs)
 
 find_package(Qt6 CONFIG REQUIRED COMPONENTS Core DBus Gui Widgets Quick LinguistTools)
+find_package(PkgConfig REQUIRED)
+pkg_check_modules(XCB REQUIRED IMPORTED_TARGET xcb xcb-xinput)
 
 set(PROJECT_SOURCES
     src/main.cpp
     src/screenshotview.cpp
+    src/screenrecorder.cpp
+    src/x11windows.cpp
     qml.qrc
 )
 
@@ -32,6 +36,7 @@ target_link_libraries(lingmo-screenshot
   Qt6::Gui
   Qt6::Widgets
   Qt6::Quick
+  PkgConfig::XCB
 )
 
 file(GLOB TS_FILES translations/*.ts)

@@ -21,6 +21,7 @@ import QtQuick 2.12
 import QtQuick.Window 2.12
 import QtQuick.Controls 2.12
 import QtQuick.Layouts 1.12
+import QtCore
 import LingmoUI.CompatibleModule 3.0 as LingmoUI
 
 Item {
@@ -31,8 +32,16 @@ Item {
     property rect cropRect
     property bool cropping: false
 
+    // Photo or video capture
+    property bool videoMode: false
+    // "screen", "area" or "window"
+    property string target: "area"
+    property rect hoveredWindow: Qt.rect(0, 0, 0, 0)
+
     Keys.enabled: true
     Keys.onEscapePressed: view.quit()
+    Keys.onReturnPressed: control.accept()
+    Keys.onEnterPressed: control.accept()
 
     Keys.onLeftPressed: {
         if (selectLayer.visible) {
@@ -72,6 +81,72 @@ Item {
 
             selectLayer.y = newY
         }
+    }
+
+    Settings {
+        id: recordSettings
+        category: "Recording"
+        property bool microphone: false
+        property bool systemAudio: false
+        property bool showClicks: false
+    }
+
+    function selectionRect() {
+        return Qt.rect(selectLayer.x * Screen.devicePixelRatio,
+                       selectLayer.y * Screen.devicePixelRatio,
+                       selectLayer.width * Screen.devicePixelRatio,
+                       selectLayer.height * Screen.devicePixelRatio)
+    }
+
+    function hasSelection() {
+        return selectLayer.visible && selectLayer.width > 1 && selectLayer.height > 1
+    }
+
+    function accept() {
+        if (!hasSelection())
+            return
+
+        if (control.videoMode)
+            control.record()
+        else
+            control.copyToClipboard()
+    }
+
+    function record() {
+        view.startRecording(selectionRect(),
+                            recordSettings.microphone,
+                            recordSettings.systemAudio,
+                            recordSettings.showClicks)
+    }
+
+    function select(rect) {
+        selectLayer.x = rect.x
+        selectLayer.y = rect.y
+        selectLayer.newX = rect.x
+        selectLayer.newY = rect.y
+        selectLayer.width = rect.width
+        selectLayer.height = rect.height
+        selectLayer.visible = true
+    }
+
+    function setTarget(value) {
+        control.target = value
+        control.hoveredWindow = Qt.rect(0, 0, 0, 0)
+
+        if (value === "screen")
+            control.select(Qt.rect(0, 0, control.width, control.height))
+        else
+            selectLayer.reset()
+    }
+
+    function windowAt(x, y) {
+        var rects = view.windowRects
+        for (var i = 0; i < rects.length; ++i) {
+            var r = rects[i]
+            if (x >= r.x && x < r.x + r.width && y >= r.y && y < r.y + r.height)
+                return r
+        }
+        return Qt.rect(0, 0, 0, 0)
     }
 
     function refreshImage() {
@@ -159,11 +234,91 @@ Item {
         MoveArea {
             anchors.fill: parent
             control: parent
+            enabled: control.target === "area"
         }
 
         ResizeBorder {
             control: parent
             anchors.fill: parent
+            enabled: control.target === "area"
+            visible: enabled
+        }
+    }
+
+    // Window under the pointer in window selection mode
+    Rectangle {
+        id: windowHighlight
+        z: 998
+        visible: control.target === "window" && hoveredWindow.width > 0
+        x: hoveredWindow.x
+        y: hoveredWindow.y
+        width: hoveredWindow.width
+        height: hoveredWindow.height
+        color: Qt.rgba(LingmoUI.Theme.highlightColor.r,
+                       LingmoUI.Theme.highlightColor.g,
+                       LingmoUI.Theme.highlightColor.b, 0.15)
+        border.width: 2
+        border.color: LingmoUI.Theme.highlightColor
+    }
+
+    // Capture mode
+    Rectangle {
+        id: modeBar
+
+        z: 1000
+        anchors.horizontalCenter: parent.horizontalCenter
+        y: LingmoUI.Units.largeSpacing * 2
+        width: modeLayout.implicitWidth + LingmoUI.Units.smallSpacing * 2
+        height: modeLayout.implicitHeight + LingmoUI.Units.smallSpacing * 2
+        radius: LingmoUI.Theme.smallRadius
+        color: "white"
+
+        MouseArea {
+            anchors.fill: parent
+        }
+
+        RowLayout {
+            id: modeLayout
+            anchors.centerIn: parent
+            spacing: 2
+
+            ModeButton {
+                text: qsTr("Photo")
+                checked: !control.videoMode
+                onClicked: control.videoMode = false
+            }
+
+            ModeButton {
+                text: qsTr("Video")
+                checked: control.videoMode
+                onClicked: control.videoMode = true
+            }
+
+            Rectangle {
+                Layout.preferredWidth: 1
+                Layout.preferredHeight: 20
+                Layout.leftMargin: LingmoUI.Units.smallSpacing
+                Layout.rightMargin: LingmoUI.Units.smallSpacing
+                color: "#d0d0d0"
+            }
+
+            ModeButton {
+                text: qsTr("Screen")
+                checked: control.target === "screen"
+                onClicked: control.setTarget("screen")
+            }
+
+            ModeButton {
+                text: qsTr("Area")
+                checked: control.target === "area"
+                onClicked: control.setTarget("area")
+            }
+
+            ModeButton {
+                text: qsTr("Window")
+                checked: control.target === "window"
+                onClicked: control.setTarget("window")
+            }
         }
     }
 
@@ -262,7 +417,7 @@ Item {
                 iconMargins: LingmoUI.Units.largeSpacing
                 size: 40
                 source: "qrc:/images/ocr.svg"
-                visible: view.ocrEnabled
+                visible: view.ocrEnabled && !control.videoMode
                 onClicked: control.ocr()
             }
 
@@ -270,7 +425,41 @@ Item {
                 iconMargins: LingmoUI.Units.largeSpacing
                 size: 40
                 source: "qrc:/images/save.svg"
+                visible: !control.videoMode
                 onClicked: control.save()
+            }
+
+            ModeButton {
+                visible: control.videoMode
+                toggle: true
+                text: qsTr("Microphone")
+                checked: recordSettings.microphone
+                onClicked: recordSettings.microphone = !recordSettings.microphone
+            }
+
+            ModeButton {
+                visible: control.videoMode
+                toggle: true
+                text: qsTr("System audio")
+                checked: recordSettings.systemAudio
+                onClicked: recordSettings.systemAudio = !recordSettings.systemAudio
+            }
+
+            ModeButton {
+                visible: control.videoMode
+                toggle: true
+                text: qsTr("Show clicks")
+                checked: recordSettings.showClicks
+                onClicked: recordSettings.showClicks = !recordSettings.showClicks
+            }
+
+            Rectangle {
+                visible: control.videoMode
+                Layout.preferredWidth: 1
+                Layout.preferredHeight: 20
+                Layout.leftMargin: LingmoUI.Units.smallSpacing
+                Layout.rightMargin: LingmoUI.Units.smallSpacing
+                color: "#d0d0d0"
             }
 
             ImageButton {
@@ -284,7 +473,29 @@ Item {
                 iconMargins: LingmoUI.Units.largeSpacing
                 size: 40
                 source: "qrc:/images/ok.svg"
+                visible: !control.videoMode
                 onClicked: control.copyToClipboard()
+            }
+
+            ImageButton {
+                id: recordButton
+                iconMargins: LingmoUI.Units.largeSpacing - 2
+                size: 40
+                source: "qrc:/images/record.svg"
+                visible: control.videoMode
+                onClicked: control.record()
+            }
+
+            Label {
+                visible: control.videoMode
+                text: qsTr("Record")
+                color: "#333"
+                rightPadding: LingmoUI.Units.smallSpacing
+
+                MouseArea {
+                    anchors.fill: parent
+                    onClicked: control.record()
+                }
             }
         }
     }
@@ -293,9 +504,23 @@ Item {
     MouseArea {
         id: mouseArea
         anchors.fill: parent
-        cursorShape: Qt.CrossCursor
+        cursorShape: control.target === "window" ? Qt.PointingHandCursor
+                                                 : control.target === "screen" ? Qt.ArrowCursor : Qt.CrossCursor
+        hoverEnabled: control.target === "window"
+
+        onClicked: {
+            if (control.target !== "window")
+                return
+
+            var rect = control.windowAt(mouseX, mouseY)
+            if (rect.width > 0)
+                control.select(rect)
+        }
 
         onPressed: {
+            if (control.target !== "area")
+                return
+
             selectLayer.visible = true
             selectLayer.x = mouseX
             selectLayer.y = mouseY
@@ -306,7 +531,12 @@ Item {
         }
 
         onPositionChanged: {
-            if (!mouseArea.pressed)
+            if (control.target === "window") {
+                control.hoveredWindow = control.windowAt(mouseX, mouseY)
+                return
+            }
+
+            if (!mouseArea.pressed || control.target !== "area")
                 return
 
             if (mouseX >= selectLayer.newX) {

@@ -18,6 +18,8 @@
  */
 
 #include "screenshotview.h"
+#include "screenrecorder.h"
+#include "x11windows.h"
 
 #include <QClipboard>
 #include <QEventLoop>
@@ -35,9 +37,11 @@
 #include <QDir>
 #include <QFile>
 #include <QImage>
+#include <QCursor>
 
-ScreenshotView::ScreenshotView(QQuickView *parent)
+ScreenshotView::ScreenshotView(ScreenRecorder *recorder, QQuickView *parent)
     : QQuickView(parent)
+    , m_recorder(recorder)
 {
     rootContext()->setContextProperty("view", this);
     QString filePath = "/usr/bin/lingmo-ocr";
@@ -63,11 +67,37 @@ bool ScreenshotView::ocrEnabled() const
     return m_ocrEnabled;
 }
 
+QVariantList ScreenshotView::windowRects() const
+{
+    return m_windowRects;
+}
+
 void ScreenshotView::start()
 {
+    // Use the screen under the mouse pointer.
+    QScreen *s = QGuiApplication::screenAt(QCursor::pos());
+    if (!s)
+        s = qGuiApp->primaryScreen();
+
+    setScreen(s);
+    setGeometry(s->geometry());
+
     // 保存图片
-    QPixmap p = qGuiApp->primaryScreen()->grabWindow(0);
+    QPixmap p = s->grabWindow(0);
     p.save("/tmp/lingmo-screenshot.png");
+
+    // Windows on this screen, in logical coordinates relative to the view.
+    const QPoint origin = s->geometry().topLeft();
+    const qreal dpr = s->devicePixelRatio();
+    const QRect bounds(QPoint(0, 0), s->geometry().size());
+    m_windowRects.clear();
+    for (const QRect &rect : X11Windows::visibleWindows()) {
+        QRect logical(QPointF((rect.topLeft() - origin) / dpr).toPoint(), (QSizeF(rect.size()) / dpr).toSize());
+        logical = logical.intersected(bounds);
+        if (!logical.isEmpty())
+            m_windowRects.append(logical);
+    }
+    emit windowRectsChanged();
 
     setVisible(true);
     setKeyboardGrabEnabled(true);
@@ -175,6 +205,27 @@ void ScreenshotView::copyToClipboard(QRect rect)
     removeTmpFile();
 
     QTimer::singleShot(100, qGuiApp, &QGuiApplication::quit);
+}
+
+void ScreenshotView::startRecording(QRect rect, bool microphone, bool systemAudio, bool showClicks)
+{
+    setKeyboardGrabEnabled(false);
+    setVisible(false);
+    removeTmpFile();
+
+    // rect is in physical pixels, relative to the screen.
+    QScreen *s = screen();
+    const QRect nativeRect = rect.translated(s->geometry().topLeft());
+
+    ScreenRecorder::Options options;
+    options.microphone = microphone;
+    options.systemAudio = systemAudio;
+    options.showClicks = showClicks;
+
+    // Give the X server some time to remove the overlay from the screen.
+    QTimer::singleShot(300, m_recorder, [this, s, nativeRect, options] {
+        m_recorder->start(s, nativeRect, options);
+    });
 }
 
 void ScreenshotView::removeTmpFile()

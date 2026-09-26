@@ -24,18 +24,39 @@
 #include <QTranslator>
 #include <QLocale>
 #include <QFile>
+#include <cstdio>
+#include <cstring>
 
 #include "screenshotview.h"
+#include "screenrecorder.h"
 
 int main(int argc, char *argv[])
 {
+    // Handled before creating the GUI application, so that it also works
+    // without a display connection.
+    for (int i = 1; i < argc; ++i) {
+        if (strcmp(argv[i], "--stop-recording") == 0) {
+            QCoreApplication app(argc, argv);
+            if (!ScreenRecorder::stopRunningRecording()) {
+                fprintf(stderr, "No screen recording is in progress.\n");
+                return 1;
+            }
+            return 0;
+        }
+    }
+
     QApplication app(argc, argv);
+    app.setOrganizationName("lingmoos");
+    app.setApplicationName("lingmo-screenshot");
+    app.setQuitOnLastWindowClosed(false);
 
     QCommandLineOption delayOption(QStringList() << "d" << "delay", "Delay Screenshot", "NUM");
+    QCommandLineOption stopRecordingOption("stop-recording", "Stop the screen recording in progress");
     QCommandLineParser parser;
     parser.setApplicationDescription("Lingmo Screenshot");
     parser.addHelpOption();
     parser.addOption(delayOption);
+    parser.addOption(stopRecordingOption);
     parser.process(app);
 
     if (!QDBusConnection::sessionBus().registerService("com.lingmo.Screenshot")) {
@@ -53,7 +74,10 @@ int main(int argc, char *argv[])
         }
     }
 
-    ScreenshotView view;
+    ScreenRecorder recorder;
+    QObject::connect(&recorder, &ScreenRecorder::done, &app, &QApplication::quit);
+
+    ScreenshotView view(&recorder);
     if (parser.isSet(delayOption)) {
         view.delay(parser.value(delayOption).toInt());
     } else {
