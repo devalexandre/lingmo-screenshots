@@ -7,7 +7,7 @@ Screenshot tool for LingmoOS.
 Arch / Manjaro Dependencies:
 
 ```shell
-sudo pacman -S extra-cmake-modules qt5-base qt5-quickcontrols2
+sudo pacman -S cmake ninja qt6-base qt6-declarative qt6-tools
 ```
 
 Debian / Ubuntu Dependencies:

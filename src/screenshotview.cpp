@@ -33,6 +33,8 @@
 #include <QDBusInterface>
 #include <QDBusPendingCall>
 #include <QDir>
+#include <QFile>
+#include <QImage>
 
 ScreenshotView::ScreenshotView(QQuickView *parent)
     : QQuickView(parent)
@@ -101,8 +103,7 @@ void ScreenshotView::ocr(QRect rect)
     bool saved = cropped.save(fileName);
 
     if (saved) {
-        QProcess process(this);
-        process.startDetached("lingmo-ocr "+fileName);
+        QProcess::startDetached("lingmo-ocr", QStringList() << fileName);
     }
 
     removeTmpFile();

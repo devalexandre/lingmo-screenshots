@@ -1,5 +1,5 @@
 import QtQuick 2.7
-import LingmoUI 1.0 as LingmoUI
+import LingmoUI.CompatibleModule 3.0 as LingmoUI
 
 Rectangle {
     id: root

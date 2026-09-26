@@ -21,8 +21,7 @@ import QtQuick 2.12
 import QtQuick.Window 2.12
 import QtQuick.Controls 2.12
 import QtQuick.Layouts 1.12
-import QtGraphicalEffects 1.0
-import LingmoUI 1.0 as LingmoUI
+import LingmoUI.CompatibleModule 3.0 as LingmoUI
 
 Item {
     id: control
@@ -263,7 +262,7 @@ Item {
                 iconMargins: LingmoUI.Units.largeSpacing
                 size: 40
                 source: "qrc:/images/ocr.svg"
-                visible: control.ocrEnabled
+                visible: view.ocrEnabled
                 onClicked: control.ocr()
             }
 
