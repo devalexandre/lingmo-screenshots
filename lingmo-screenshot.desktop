@@ -1,5 +1,6 @@
 [Desktop Entry]
 Name=Screenshot
+Name[pt_BR]=Captura de tela
 Name[zh_CN]=截图
 Exec=lingmo-screenshot
 Icon=lingmo-screenshot
