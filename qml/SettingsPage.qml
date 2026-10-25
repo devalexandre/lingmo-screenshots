@@ -196,11 +196,21 @@ ColumnLayout {
                 }
 
                 SettingRow {
-                    title: qsTr("Languages")
-                    subtitle: qsTr("Tesseract codes joined with +, for example por+eng or por+eng+spa.")
+                    title: qsTr("Reading languages")
+                    subtitle: qsTr("Automatic: the script of the text is detected and its installed pack is used. Add languages (Hebrew, Arabic, Chinese…) in Settings.")
+                    LingmoUI.ActionButton {
+                        text: qsTr("Manage…")
+                        onClicked: ocr.openLanguageSettings()
+                    }
+                }
+
+                SettingRow {
+                    title: qsTr("Preferred Latin languages")
+                    subtitle: qsTr("Advanced. Only used when the script can't be detected; leave empty for all installed Latin packs. Tesseract codes joined with +, for example por+eng.")
                     TextField {
                         Layout.preferredWidth: 180
                         text: config.ocrLanguages
+                        placeholderText: qsTr("Automatic")
                         selectByMouse: true
                         onEditingFinished: config.ocrLanguages = text
                     }

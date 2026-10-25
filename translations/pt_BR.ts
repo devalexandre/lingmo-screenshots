@@ -290,7 +290,47 @@
         <translation>Fechar (Esc)</translation>
     </message>
     <message>
-        <location line="+99"/>
+        <location line="+82"/>
+        <source>To read %1, install the reading pack (≈ %2 MB)</source>
+        <translation>Para ler %1, instale o pacote de leitura (≈ %2 MB)</translation>
+    </message>
+    <message>
+        <location line="+1"/>
+        <source>To read %1, install the reading pack</source>
+        <translation>Para ler %1, instale o pacote de leitura</translation>
+    </message>
+    <message>
+        <location line="+1"/>
+        <source>Uncertain reading</source>
+        <translation>Leitura incerta</translation>
+    </message>
+    <message>
+        <location line="+2"/>
+        <source>You can still ask: the answer will come from the picture only, and the reading is uncertain.</source>
+        <translation>Você ainda pode perguntar: a resposta virá só da imagem, e a leitura é incerta.</translation>
+    </message>
+    <message>
+        <location line="+1"/>
+        <source>The text in the selection wasn&apos;t recognized reliably, so it isn&apos;t used as the text. The answer comes from the picture and may be uncertain.</source>
+        <translation>O texto da seleção não foi reconhecido com segurança, então não é usado como texto. A resposta vem da imagem e pode ser incerta.</translation>
+    </message>
+    <message>
+        <location line="+8"/>
+        <source>Installing… %1</source>
+        <translation>Instalando… %1</translation>
+    </message>
+    <message>
+        <location line="+1"/>
+        <source>Installing…</source>
+        <translation>Instalando…</translation>
+    </message>
+    <message>
+        <location line="+1"/>
+        <source>Install</source>
+        <translation>Instalar</translation>
+    </message>
+    <message>
+        <location line="+34"/>
         <source>Reading the text in the selection…</source>
         <translation>Lendo o texto da seleção…</translation>
     </message>
@@ -503,7 +543,7 @@
         <translation>Borracha: clique num objeto para apagá-lo (E)</translation>
     </message>
     <message>
-        <location line="+793"/>
+        <location line="+792"/>
         <source>Text size: %1</source>
         <translation>Tamanho do texto: %1</translation>
     </message>
@@ -534,8 +574,8 @@
     </message>
     <message>
         <location line="+1"/>
-        <source>Tesseract is installed, but the language data (%1) is missing. Install it from the settings.</source>
-        <translation>O tesseract está instalado, mas faltam os dados de idioma (%1). Instale-os pelas configurações.</translation>
+        <source>Tesseract is installed, but no language data is. Install it from the settings.</source>
+        <translation>O Tesseract está instalado, mas nenhum idioma de leitura. Instale-o nas configurações.</translation>
     </message>
     <message>
         <location line="+11"/>
@@ -805,7 +845,7 @@ Opções:
         <translation>Captura de tela</translation>
     </message>
     <message>
-        <location line="+180"/>
+        <location line="+182"/>
         <source>Window</source>
         <translation>Janela</translation>
     </message>
@@ -1154,9 +1194,72 @@ Opções:
     </message>
 </context>
 <context>
+    <name>Ocr</name>
+    <message>
+        <location filename="../src/ocr.cpp" line="+541"/>
+        <source>Hebrew</source>
+        <translation>hebraico</translation>
+    </message>
+    <message>
+        <location line="+1"/>
+        <source>Arabic</source>
+        <translation>árabe</translation>
+    </message>
+    <message>
+        <location line="+1"/>
+        <source>Russian and Ukrainian</source>
+        <translation>russo e ucraniano</translation>
+    </message>
+    <message>
+        <location line="+1"/>
+        <source>Chinese</source>
+        <translation>chinês</translation>
+    </message>
+    <message>
+        <location line="+2"/>
+        <source>Japanese</source>
+        <translation>japonês</translation>
+    </message>
+    <message>
+        <location line="+1"/>
+        <source>Korean</source>
+        <translation>coreano</translation>
+    </message>
+    <message>
+        <location line="+1"/>
+        <source>Greek</source>
+        <translation>grego</translation>
+    </message>
+    <message>
+        <location line="+1"/>
+        <source>Hindi</source>
+        <translation>hindi</translation>
+    </message>
+    <message>
+        <location line="+1"/>
+        <source>Thai</source>
+        <translation>tailandês</translation>
+    </message>
+    <message>
+        <location line="+1"/>
+        <source>Bengali</source>
+        <translation>bengali</translation>
+    </message>
+    <message>
+        <location line="+1"/>
+        <source>Tamil</source>
+        <translation>tâmil</translation>
+    </message>
+    <message>
+        <location line="+1"/>
+        <source>Latin script</source>
+        <translation>alfabeto latino</translation>
+    </message>
+</context>
+<context>
     <name>OcrEngine</name>
     <message>
-        <location filename="../src/ocr.cpp" line="+254"/>
+        <location line="+530"/>
         <source>The installation was cancelled.</source>
         <translation>A instalação foi cancelada.</translation>
     </message>
@@ -1171,28 +1274,37 @@ Opções:
         <translation>Não foi possível iniciar o pkexec. Verifique se o polkit está instalado.</translation>
     </message>
     <message>
-        <location line="+35"/>
+        <location line="+20"/>
+        <location line="+63"/>
         <source>Text recognition is already running.</source>
         <translation>O reconhecimento de texto já está em andamento.</translation>
     </message>
     <message>
-        <location line="+5"/>
+        <location line="-59"/>
+        <location line="+64"/>
         <source>Text recognition needs tesseract and its language data.</source>
         <translation>O reconhecimento de texto precisa do tesseract e dos dados de idioma.</translation>
     </message>
     <message>
-        <location line="+5"/>
+        <location line="-60"/>
+        <location line="+65"/>
         <source>There is nothing to recognize.</source>
         <translation>Não há nada para reconhecer.</translation>
     </message>
     <message>
-        <location line="+11"/>
+        <location line="-53"/>
+        <source>This text is in %1. To read it, install its reading pack in Settings › Language › Reading languages.</source>
+        <translation>Este texto está em %1. Para lê-lo, instale o pacote de leitura em Configurações › Idioma › Idiomas de leitura.</translation>
+    </message>
+    <message>
+        <location line="+64"/>
         <location line="+15"/>
         <source>Unable to create a temporary file for text recognition.</source>
         <translation>Não foi possível criar um arquivo temporário para o reconhecimento de texto.</translation>
     </message>
     <message>
-        <location line="+30"/>
+        <location line="-76"/>
+        <location line="+106"/>
         <source>Text recognition failed.</source>
         <translation>O reconhecimento de texto falhou.</translation>
     </message>
@@ -1311,7 +1423,12 @@ Opções:
 <context>
     <name>ScreenAsk</name>
     <message>
-        <location filename="../src/screenask.cpp" line="+180"/>
+        <location filename="../src/screenask.cpp" line="+235"/>
+        <source>Reading pack installed. Reading the selection again…</source>
+        <translation>Pacote de leitura instalado. Lendo a seleção de novo…</translation>
+    </message>
+    <message>
+        <location line="+13"/>
         <source>Explain</source>
         <translation>Explicar</translation>
     </message>
@@ -1341,12 +1458,12 @@ Opções:
         <translation>Buscar na web</translation>
     </message>
     <message>
-        <location line="+23"/>
+        <location line="+28"/>
         <source>Install Lingmo Assistant to ask the AI about the screen.</source>
         <translation>Instale o Assistente Lingmo para perguntar à IA sobre a tela.</translation>
     </message>
     <message>
-        <location line="+89"/>
+        <location line="+97"/>
         <source>The assistant wants to do something that needs your permission. Continue in the Assistant to answer.</source>
         <translation>O Assistente quer fazer algo que precisa da sua permissão. Continue no Assistente para responder.</translation>
     </message>
@@ -1357,7 +1474,17 @@ Opções:
         <translation>Texto copiado.</translation>
     </message>
     <message>
-        <location line="+19"/>
+        <location line="+20"/>
+        <source>To read %1, install the reading pack first.</source>
+        <translation>Para ler %1, instale antes o pacote de leitura.</translation>
+    </message>
+    <message>
+        <location line="+2"/>
+        <source>The text in the selection couldn&apos;t be read reliably.</source>
+        <translation>Não foi possível ler o texto da seleção com segurança.</translation>
+    </message>
+    <message>
+        <location line="+2"/>
         <source>No text was found in the selection.</source>
         <translation>Nenhum texto foi encontrado na seleção.</translation>
     </message>
@@ -1386,8 +1513,8 @@ Opções:
     </message>
     <message>
         <location line="+2"/>
-        <source>Translate all the text in this area into %1.</source>
-        <translation>Traduza todo o texto desta área para %1.</translation>
+        <source>Translate the text in this area into %1. Reply with only the translation.</source>
+        <translation>Traduza o texto desta área para %1. Responda só com a tradução.</translation>
     </message>
     <message>
         <location line="+2"/>
@@ -1544,18 +1671,18 @@ Opções:
     </message>
     <message>
         <location line="+3"/>
-        <location line="+314"/>
+        <location line="+324"/>
         <source>Folder</source>
         <translation>Pasta</translation>
     </message>
     <message>
-        <location line="-309"/>
-        <location line="+313"/>
+        <location line="-319"/>
+        <location line="+323"/>
         <source>Open the folder</source>
         <translation>Abrir a pasta</translation>
     </message>
     <message>
-        <location line="-309"/>
+        <location line="-319"/>
         <source>Change…</source>
         <translation>Alterar…</translation>
     </message>
@@ -1581,12 +1708,12 @@ Opções:
     </message>
     <message>
         <location line="+8"/>
-        <location line="+239"/>
+        <location line="+249"/>
         <source>Format</source>
         <translation>Formato</translation>
     </message>
     <message>
-        <location line="-230"/>
+        <location line="-240"/>
         <source>Copy to the clipboard when saving</source>
         <translation>Copiar para a área de transferência ao salvar</translation>
     </message>
@@ -1667,16 +1794,36 @@ Opções:
     </message>
     <message>
         <location line="+8"/>
-        <source>Languages</source>
-        <translation>Idiomas</translation>
+        <source>Reading languages</source>
+        <translation>Idiomas de leitura</translation>
     </message>
     <message>
         <location line="+1"/>
-        <source>Tesseract codes joined with +, for example por+eng or por+eng+spa.</source>
-        <translation>Códigos do tesseract unidos com +, por exemplo por+eng ou por+eng+spa.</translation>
+        <source>Automatic: the script of the text is detected and its installed pack is used. Add languages (Hebrew, Arabic, Chinese…) in Settings.</source>
+        <translation>Automático: a escrita do texto é detectada e o pacote instalado dela é usado. Adicione idiomas (hebraico, árabe, chinês…) nas Configurações.</translation>
     </message>
     <message>
-        <location line="+20"/>
+        <location line="+2"/>
+        <source>Manage…</source>
+        <translation>Gerenciar…</translation>
+    </message>
+    <message>
+        <location line="+6"/>
+        <source>Preferred Latin languages</source>
+        <translation>Idiomas latinos preferidos</translation>
+    </message>
+    <message>
+        <location line="+1"/>
+        <source>Advanced. Only used when the script can&apos;t be detected; leave empty for all installed Latin packs. Tesseract codes joined with +, for example por+eng.</source>
+        <translation>Avançado. Só é usado quando a escrita não pode ser detectada; deixe vazio para usar todos os pacotes latinos instalados. Códigos do Tesseract unidos com +, por exemplo por+eng.</translation>
+    </message>
+    <message>
+        <location line="+4"/>
+        <source>Automatic</source>
+        <translation>Automático</translation>
+    </message>
+    <message>
+        <location line="+17"/>
         <source>Presentation</source>
         <translation>Apresentação</translation>
     </message>

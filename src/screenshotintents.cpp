@@ -142,15 +142,10 @@ void ocr(Application *app, const IntentCall &call)
     if (image.isNull())
         return call.finish(IntentResult::failed(QObject::tr("This file is not an image.")));
     const QString languages = call.params().value(QStringLiteral("languages")).toString();
-    const QString previous = engine->wantedLanguages();
-    if (!languages.isEmpty())
-        engine->setWantedLanguages(languages);
     auto connections = std::make_shared<QList<QMetaObject::Connection>>();
-    auto finish = [call, connections, engine, previous, languages](const IntentResult &r) {
+    auto finish = [call, connections](const IntentResult &r) {
         for (const auto &c : *connections)
             QObject::disconnect(c);
-        if (!languages.isEmpty())
-            engine->setWantedLanguages(previous);
         call.finish(r);
     };
     connections->append(QObject::connect(engine, &OcrEngine::textReady, app, [finish](const QString &text) {
@@ -159,7 +154,8 @@ void ocr(Application *app, const IntentCall &call)
     connections->append(QObject::connect(engine, &OcrEngine::failed, app, [finish](const QString &message) {
         finish(IntentResult::failed(message));
     }));
-    engine->recognizeText(image);
+    // No languages given: detected from the script
+    engine->recognizeText(image, languages);
 }
 
 // "Ask about the screen": the overlay opens and the person selects the area;

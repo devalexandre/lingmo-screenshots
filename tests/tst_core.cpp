@@ -60,6 +60,12 @@ private slots:
     void parseLanguages();
     void languageArgument();
     void scaleBox();
+    void parseOsd();
+    void scriptLanguages();
+    void hebrewUsesHebWithPorEngPreferred();
+    void garbageDetection();
+    void wordsToText();
+    void ocrJobDetectsHebrew();
 
     // Smart selection and long captures
     void regionDetection();
@@ -494,6 +500,186 @@ void TestCore::scaleBox()
 {
     QCOMPARE(Ocr::scaleBox(QRect(20, 10, 41, 21), 2), QRect(10, 5, 21, 11));
     QCOMPARE(Ocr::scaleBox(QRect(20, 10, 40, 20), 1), QRect(20, 10, 40, 20));
+}
+
+void TestCore::parseOsd()
+{
+    const QByteArray out = "Page number: 0\nOrientation in degrees: 0\nRotate: 0\nOrientation confidence: 6.61\n"
+                           "Script: Hebrew\nScript confidence: 7.22\n";
+    const Ocr::Osd osd = Ocr::parseOsd(out);
+    QCOMPARE(osd.script, QStringLiteral("Hebrew"));
+    QCOMPARE(osd.confidence, 7.22);
+    QVERIFY(Ocr::osdConfident(osd));
+    // A tiny crop: tesseract gives up, or guesses with no confidence
+    QVERIFY(!Ocr::parseOsd("Too few characters. Skipping this page\nError during processing.\n").isValid());
+    QVERIFY(!Ocr::parseOsd("Script: Katakana\nScript confidence: 0.00\n").isValid());
+    QVERIFY(!Ocr::osdConfident(Ocr::parseOsd("Script: Cyrillic\nScript confidence: 1.10\n")));
+    // Han vs Japanese: a small margin is normal
+    QVERIFY(Ocr::osdConfident(Ocr::parseOsd("Script: Han\nScript confidence: 0.96\n")));
+    QVERIFY(!Ocr::osdConfident(Ocr::parseOsd("Script: Fraktur\nScript confidence: 9\n")));
+}
+
+void TestCore::scriptLanguages()
+{
+    QCOMPARE(Ocr::scriptPacks("Hebrew"), QStringList({"heb"}));
+    QCOMPARE(Ocr::scriptPacks("Arabic"), QStringList({"ara"}));
+    QCOMPARE(Ocr::scriptPacks("Cyrillic"), QStringList({"rus", "ukr"}));
+    QCOMPARE(Ocr::scriptPacks("Han"), QStringList({"chi_sim", "chi_tra"}));
+    QCOMPARE(Ocr::scriptPacks("Japanese"), QStringList({"jpn"}));
+    QCOMPARE(Ocr::scriptPacks("Hangul"), QStringList({"kor"}));
+    QCOMPARE(Ocr::scriptPacks("Greek"), QStringList({"ell"}));
+    QCOMPARE(Ocr::scriptPacks("Devanagari"), QStringList({"hin"}));
+    QCOMPARE(Ocr::scriptPacks("Thai"), QStringList({"tha"}));
+    QCOMPARE(Ocr::scriptPacks("Bengali"), QStringList({"ben"}));
+    QCOMPARE(Ocr::scriptPacks("Tamil"), QStringList({"tam"}));
+    QVERIFY(Ocr::scriptPacks("Latin").isEmpty());
+
+    // Latin: the preferred ones first, then every other installed Latin pack
+    const QStringList installed = {"afr", "deu", "eng", "heb", "ita", "por", "spa"};
+    QCOMPARE(Ocr::latinLanguages("por+eng", installed), QStringList({"por", "eng", "spa", "deu", "ita"}));
+    QCOMPARE(Ocr::latinLanguages("", installed), QStringList({"eng", "por", "spa", "deu", "ita"}));
+    QCOMPARE(Ocr::latinLanguages("", installed, 7), QStringList({"eng", "por", "spa", "deu", "ita", "afr"}));
+    QCOMPARE(Ocr::latinLanguages("xyz", {"por"}), QStringList({"por"}));
+
+    // A script whose pack is missing
+    Ocr::Plan plan = Ocr::plan("Arabic", "por+eng", {"eng", "por"});
+    QVERIFY(plan.languages.isEmpty());
+    QCOMPARE(plan.missing, QStringList({"ara"}));
+    // ... and with it: mixed with Latin (ara+eng)
+    plan = Ocr::plan("Arabic", "por+eng", {"ara", "eng", "por"});
+    QCOMPARE(plan.languages, QStringList({"ara", "eng"}));
+    QVERIFY(plan.missing.isEmpty());
+    // One of two packs is enough
+    plan = Ocr::plan("Han", "", {"chi_tra", "por"});
+    QCOMPARE(plan.languages, QStringList({"chi_tra", "por"}));
+    plan = Ocr::plan("Cyrillic", "", {"eng"});
+    QCOMPARE(plan.missing, QStringList({"rus", "ukr"}));
+    // Latin and undetected: the Latin packs
+    QCOMPARE(Ocr::plan("Latin", "por+eng", installed).languages, QStringList({"por", "eng", "spa", "deu", "ita"}));
+    QCOMPARE(Ocr::plan(QString(), "", {"por"}).languages, QStringList({"por"}));
+
+    QVERIFY(Ocr::packDownloadKiB("heb") > 1000);
+    QVERIFY(!Ocr::scriptName("Hebrew").isEmpty());
+}
+
+// The old fixed "por+eng" setting must never keep an installed pack of the
+// detected script out (it did: Hebrew was read as Latin garbage)
+void TestCore::hebrewUsesHebWithPorEngPreferred()
+{
+    const Ocr::Plan plan = Ocr::plan("Hebrew", "por+eng", {"eng", "heb", "osd", "por"});
+    QVERIFY(plan.missing.isEmpty());
+    QCOMPARE(plan.languages.first(), QStringLiteral("heb"));
+    QVERIFY(!plan.languages.contains("por"));
+}
+
+void TestCore::garbageDetection()
+{
+    // What por+eng read from a WhatsApp message in Hebrew
+    const QString garbage = QStringLiteral("bR P 3993 20:30-5 (3w D1) am N0 SD PONN");
+    QVERIFY(!Ocr::assessText(garbage).reliable);
+    QVERIFY(!Ocr::assessText(garbage, "Latin").reliable);
+    // Expected Hebrew, got Latin letters
+    QVERIFY(!Ocr::assessText(QStringLiteral("DRI YW amh ANRXIT AMUA Navae"), "Hebrew").reliable);
+
+    const QString hebrew = QString::fromUtf8("מחר (יום שני) ב-20:30 בערב שעון ישראל\nאני מעביר הרצאה אונליין על יצירת\n"
+                                             "סביבת פיתוח בטוחה לסוכנים בתוך VM");
+    QVERIFY(Ocr::assessText(hebrew, "Hebrew").reliable);
+    QVERIFY(Ocr::assessText(hebrew).reliable);
+    const QString portuguese = QString::fromUtf8("Amanhã às 20:30 vou fazer uma palestra online\n"
+                                                 "sobre como criar um ambiente seguro para agentes (VM, SSD, mp3).");
+    QVERIFY(Ocr::assessText(portuguese).reliable);
+    QVERIFY(Ocr::assessText(portuguese, "Latin").reliable);
+    QVERIFY(Ocr::assessText(QString::fromUtf8("Завтра в 20:30 я проведу онлайн-лекцию"), "Cyrillic").reliable);
+    QVERIFY(Ocr::assessText(QString::fromUtf8("明天晚上八点半我会做一个在线讲座。"), "Han").reliable);
+    QVERIFY(Ocr::assessText(QString::fromUtf8("غداً الساعة الثامنة مساءً سأقدم محاضرة عبر VM"), "Arabic").reliable);
+    QVERIFY(Ocr::assessText(QStringLiteral("20:30")).reliable);
+    QVERIFY(!Ocr::assessText(QString()).reliable);
+
+    // tesseract's own confidences: the same words read at 22% aren't text
+    QVector<Ocr::Word> words;
+    for (const QString &w : {QStringLiteral("Amanhã"), QStringLiteral("vou"), QStringLiteral("sair")}) {
+        Ocr::Word word;
+        word.text = w;
+        word.confidence = 92;
+        words.append(word);
+    }
+    QVERIFY(Ocr::assess(words).reliable);
+    QVERIFY(Ocr::assess(words).meanConfidence > 90);
+    for (Ocr::Word &w : words)
+        w.confidence = 22;
+    QVERIFY(!Ocr::assess(words).reliable);
+}
+
+void TestCore::wordsToText()
+{
+    const QByteArray tsv =
+        "5\t1\t1\t1\t1\t1\t10\t10\t30\t12\t95\tHello\n"
+        "5\t1\t1\t1\t1\t2\t50\t10\t30\t12\t95\tworld\n"
+        "5\t1\t1\t1\t2\t1\t10\t30\t30\t12\t95\tsecond\n"
+        "5\t1\t2\t1\t1\t1\t10\t60\t30\t12\t95\tblock\n";
+    QCOMPARE(Ocr::wordsToText(Ocr::parseTsv(tsv)), QStringLiteral("Hello world\nsecond\n\nblock"));
+    // Chinese: one character per "word", no spaces between them
+    QVector<Ocr::Word> chinese;
+    for (const char *c : {"明", "天", "，", "VM", "里"}) {
+        Ocr::Word w;
+        w.text = QString::fromUtf8(c);
+        chinese.append(w);
+    }
+    QCOMPARE(Ocr::wordsToText(chinese), QString::fromUtf8("明天，VM 里"));
+}
+
+// With real tesseract: osd and heb from TESSDATA_PREFIX (skipped without them)
+void TestCore::ocrJobDetectsHebrew()
+{
+    const QString tesseract = QStandardPaths::findExecutable(QStringLiteral("tesseract"));
+    if (tesseract.isEmpty())
+        QSKIP("tesseract is not installed");
+    QProcess list;
+    list.start(tesseract, {QStringLiteral("--list-langs")});
+    list.waitForFinished(5000);
+    const QByteArray langs = list.readAllStandardOutput() + list.readAllStandardError();
+    const QStringList installed = Ocr::parseLanguages(langs);
+    if (!langs.contains("\nosd") || !installed.contains("heb") || !installed.contains("eng"))
+        QSKIP("needs osd, heb and eng (set TESSDATA_PREFIX)");
+
+    // A WhatsApp-like bubble: light Hebrew text on a dark background
+    QImage image(520, 150, QImage::Format_RGB32);
+    image.fill(QColor("#202c33"));
+    {
+        QPainter p(&image);
+        p.setPen(QColor("#e9edef"));
+        QFont font(QStringLiteral("Noto Sans Hebrew"));
+        font.setPixelSize(20);
+        p.setFont(font);
+        p.drawText(QRect(10, 10, 500, 130), Qt::AlignRight | Qt::AlignTop,
+                   QString::fromUtf8("מחר (יום שני) ב-20:30 בערב שעון ישראל\nאני מעביר הרצאה אונליין על יצירת\n"
+                                     "סביבת פיתוח בטוחה לסוכנים בתוך המחשב"));
+    }
+
+    // heb installed and the old "por+eng" setting: heb is used
+    {
+        OcrJob job(tesseract, installed, QStringLiteral("por+eng"));
+        QSignalSpy spy(&job, &OcrJob::finished);
+        job.start(image);
+        QVERIFY(spy.wait(30000));
+        const Ocr::Analysis a = job.result();
+        QCOMPARE(a.status, QStringLiteral("ok"));
+        QCOMPARE(a.script, QStringLiteral("Hebrew"));
+        QCOMPARE(a.languages.first(), QStringLiteral("heb"));
+        QVERIFY2(a.text.contains(QString::fromUtf8("ישראל")), qPrintable(a.text));
+        QVERIFY(a.quality.meanConfidence >= Ocr::MinConfidence);
+    }
+    // Without heb: the pack is missing, and no garbage text comes back
+    {
+        OcrJob job(tesseract, {QStringLiteral("eng"), QStringLiteral("por")}, QStringLiteral("por+eng"));
+        QSignalSpy spy(&job, &OcrJob::finished);
+        job.start(image);
+        QVERIFY(spy.wait(30000));
+        const Ocr::Analysis a = job.result();
+        QCOMPARE(a.status, QStringLiteral("missing"));
+        QCOMPARE(a.missing, QStringList({"heb"}));
+        QVERIFY(a.text.isEmpty());
+    }
 }
 
 void TestCore::regionDetection()

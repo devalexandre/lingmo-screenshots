@@ -106,7 +106,7 @@ QString ScreenAskCore::chipQuestion(const QString &kind, const QLocale &locale)
     if (kind == QLatin1String("explain"))
         return tr("Explain what is in this area of the screen.");
     if (kind == QLatin1String("translate"))
-        return tr("Translate all the text in this area into %1.").arg(languageName(locale));
+        return tr("Translate the text in this area into %1. Reply with only the translation.").arg(languageName(locale));
     if (kind == QLatin1String("summarize"))
         return tr("Summarize what this area shows.");
     if (kind == QLatin1String("what"))

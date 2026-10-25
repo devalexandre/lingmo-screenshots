@@ -241,6 +241,38 @@ Item {
                 }
             }
 
+            // ------------------------------------------------ reading
+            // The text is in a script whose pack isn't installed, or was read
+            // badly: never passed off as the text (the model would translate
+            // nonsense); the question can still go, with the picture only
+            LingmoUI.Banner {
+                id: readingBanner
+                Layout.fillWidth: true
+                visible: screenAsk.ocrStatus === "missing" || screenAsk.ocrStatus === "unreliable"
+                closable: false
+                type: LingmoUI.Banner.Warning
+                title: screenAsk.ocrStatus === "missing"
+                       ? (screenAsk.missingSizeMb > 0
+                          ? qsTr("To read %1, install the reading pack (≈ %2 MB)").arg(screenAsk.ocrLanguageName).arg(screenAsk.missingSizeMb)
+                          : qsTr("To read %1, install the reading pack").arg(screenAsk.ocrLanguageName))
+                       : qsTr("Uncertain reading")
+                text: screenAsk.ocrStatus === "missing"
+                      ? qsTr("You can still ask: the answer will come from the picture only, and the reading is uncertain.")
+                      : qsTr("The text in the selection wasn't recognized reliably, so it isn't used as the text. The answer comes from the picture and may be uncertain.")
+
+                LingmoUI.ActionButton {
+                    visible: screenAsk.ocrStatus === "missing"
+                    primary: true
+                    busy: screenAsk.installingPack
+                    enabled: !screenAsk.installingPack
+                    text: screenAsk.installingPack
+                          ? (screenAsk.installProgress.length > 0 ? qsTr("Installing… %1").arg(screenAsk.installProgress)
+                                                                  : qsTr("Installing…"))
+                          : qsTr("Install")
+                    onClicked: screenAsk.installReadingPack()
+                }
+            }
+
             // ------------------------------------------------ the answer
             ColumnLayout {
                 Layout.fillWidth: true

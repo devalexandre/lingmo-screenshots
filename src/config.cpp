@@ -125,7 +125,9 @@ void Config::setHistorySize(int value) { set(QStringLiteral("History/size"), qBo
 
 QString Config::ocrLanguages() const
 {
-    return value(QStringLiteral("Ocr/languages"), QStringLiteral("por+eng")).toString();
+    // Empty: automatic (the script is detected; the installed Latin packs
+    // when it can't be). A stored value only orders the Latin packs.
+    return value(QStringLiteral("Ocr/languages"), QString()).toString();
 }
 
 void Config::setOcrLanguages(const QString &value) { set(QStringLiteral("Ocr/languages"), value.trimmed()); }

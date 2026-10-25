@@ -25,6 +25,9 @@
 #include <QRectF>
 #include <QVariantList>
 #include <QVariantMap>
+#include <QHash>
+
+#include "ocr.h"
 
 class AssistantEngine;
 class CaptureSession;
@@ -49,6 +52,14 @@ class ScreenAsk : public QObject
     Q_PROPERTY(QString error READ error NOTIFY stateChanged)
     Q_PROPERTY(QString ocrText READ ocrText NOTIFY ocrChanged)
     Q_PROPERTY(bool ocrBusy READ ocrBusy NOTIFY ocrChanged)
+    // How the text was read: "", ok, unreliable, missing, empty, failed
+    Q_PROPERTY(QString ocrStatus READ ocrStatus NOTIFY ocrChanged)
+    // "Hebrew" in the UI language, when a script was detected
+    Q_PROPERTY(QString ocrLanguageName READ ocrLanguageName NOTIFY ocrChanged)
+    // Download size of the missing packs, in MB (0: unknown)
+    Q_PROPERTY(int missingSizeMb READ missingSizeMb NOTIFY ocrChanged)
+    Q_PROPERTY(bool installingPack READ installingPack NOTIFY installChanged)
+    Q_PROPERTY(QString installProgress READ installProgress NOTIFY installChanged)
     // "vision" or "ocr" once the engine answered; before that what it will be
     Q_PROPERTY(QString mode READ mode NOTIFY configChanged)
     Q_PROPERTY(QString model READ model NOTIFY configChanged)
@@ -70,6 +81,11 @@ public:
     QString error() const { return m_error; }
     QString ocrText() const { return m_ocrText; }
     bool ocrBusy() const { return m_ocrBusy; }
+    QString ocrStatus() const { return m_analysis.status; }
+    QString ocrLanguageName() const;
+    int missingSizeMb() const;
+    bool installingPack() const;
+    QString installProgress() const;
     QString mode() const;
     QString model() const { return m_model; }
     int turns() const { return m_turns; }
@@ -86,6 +102,9 @@ public:
     Q_INVOKABLE void askChip(const QString &kind);
     Q_INVOKABLE QString chipLabel(const QString &kind) const;
     Q_INVOKABLE void stop();
+    // Installs the reading pack of the detected script (tesseract-data-heb)
+    // and reads the selection again with it
+    Q_INVOKABLE void installReadingPack();
     // "Copy text": the recognized text, or the model reads it when OCR found
     // none (vision models). False when it had to ask the model.
     Q_INVOKABLE bool copyText();
@@ -109,6 +128,7 @@ signals:
     void ocrChanged();
     void configChanged();
     void voiceChanged();
+    void installChanged();
     // Short feedback for a toast
     void message(const QString &text, bool error);
     // The overlay should close (the answer went to the Assistant or a card)
@@ -120,7 +140,9 @@ private:
     void onEvent(const QVariantMap &event);
     void setState(const QString &state, const QString &error = QString());
     void startOcr();
+    void applyAnalysis(const Ocr::Analysis &analysis);
     void send();
+    void askQuestion(const QString &text, const QString &intent);
     QImage crop() const { return m_image; }
 
     QPointer<CaptureSession> m_session;
@@ -134,7 +156,13 @@ private:
     QString m_pendingQuestion;
     QString m_answer;
     QString m_error;
-    QString m_ocrText;
+    QString m_ocrText;        // only text that can be trusted
+    Ocr::Analysis m_analysis;
+    // Per crop (hash of the pixels and the installed packs): selecting the
+    // same area again doesn't read it again. Memory only.
+    QHash<QByteArray, Ocr::Analysis> m_cache;
+    QByteArray m_cacheKey;
+    QString m_intent;         // the chip of the pending question, or empty
     bool m_ocrBusy = false;
     bool m_ocrDone = false;
     QObject *m_ocrWatch = nullptr;

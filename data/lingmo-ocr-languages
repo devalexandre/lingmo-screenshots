@@ -1,0 +1,162 @@
+#!/bin/sh
+#
+# Copyright (C) 2026 LingmoOS Team.
+#
+# This program is free software: you can redistribute it and/or modify
+# it under the terms of the GNU General Public License as published by
+# the Free Software Foundation, either version 3 of the License, or
+# any later version.
+#
+# The text recognition (OCR) language packs: tesseract-data-<code>. One place
+# for everything that installs or removes them, so the screenshot tool
+# ("Perguntar sobre a tela" › Instalar) and Settings (Idioma › Idiomas de
+# leitura) behave the same:
+#
+#   list [code...]       one line per pack in the repositories (all, or the
+#                        codes given), tab separated:
+#                        code  installed(0|1)  download-bytes  installed-bytes  removable(0|1)
+#   install <code>...    one pacman transaction, through polkit
+#   remove <code>...     the same; packs something else depends on are refused
+#
+# install and remove go through the Lingmo Store helper
+# (pkexec /usr/lib/lingmo-store/lingmo-store-helper install|remove tesseract-data-...)
+# and fall back to pkexec pacman. The helper's "@@STEP" and "(i/n) installing"
+# lines are passed through for progress. Exit codes: pacman's/pkexec's
+# (126: authentication dismissed), 2 for bad arguments, 3 for a protected pack.
+#
+# Testing: with LINGMO_STORE_FAKE set (and not root), the store helper runs in
+# its simulated mode, without pkexec (LINGMO_OCR_STORE_HELPER may point at
+# a copy of it). Nothing is installed then.
+
+export LC_ALL=C
+PATH=/usr/bin:/bin:/usr/sbin:/sbin
+export PATH
+
+HELPER=/usr/lib/lingmo-store/lingmo-store-helper
+FAKE=
+if [ "$(id -u)" != 0 ] && [ -n "$LINGMO_STORE_FAKE" ]; then
+    FAKE=1
+    [ -n "$LINGMO_OCR_STORE_HELPER" ] && HELPER=$LINGMO_OCR_STORE_HELPER
+fi
+
+# Never removed: OSD (script detection) and the packs the screenshot tool
+# itself depends on (see removable below)
+KEEP="osd"
+
+usage() {
+    echo "usage: lingmo-ocr-languages list [code...] | install <code>... | remove <code>..." >&2
+    exit 2
+}
+
+check_codes() {
+    [ $# -gt 0 ] || usage
+    for c in "$@"; do
+        case $c in
+        ''|-*|*[!a-z0-9_]*) echo "invalid language code: $c" >&2; exit 2 ;;
+        esac
+    done
+}
+
+installed_packs() {
+    pacman -Qq 2>/dev/null | sed -n 's/^tesseract-data-//p'
+}
+
+# Whether a pack may be removed: never osd, never one a package other than
+# tesseract itself depends on (lingmo-screenshots needs por and eng), and
+# never the last one (tesseract needs some tessdata)
+removable() {
+    code=$1
+    for k in $KEEP; do
+        [ "$code" = "$k" ] && return 1
+    done
+    required=$(pacman -Qi "tesseract-data-$code" 2>/dev/null | awk -F': *' '
+        /^Required By/ { list = $2; next }
+        /^[A-Z][A-Za-z ]+ *:/ { if (list != "") exit }
+        list != "" && /^ / { list = list " " $0 }
+        END { print list }')
+    for r in $required; do
+        case $r in
+        None|tesseract) ;;
+        *) return 1 ;;
+        esac
+    done
+    others=$(installed_packs | grep -vx -e osd -e "$code" | wc -l)
+    [ "$others" -gt 0 ]
+}
+
+cmd_list() {
+    if [ $# -gt 0 ]; then
+        check_codes "$@"
+        pkgs=
+        for c in "$@"; do pkgs="$pkgs tesseract-data-$c"; done
+    else
+        pkgs=$(pacman -Ssq '^tesseract-data-' 2>/dev/null)
+    fi
+    [ -n "$pkgs" ] || exit 0
+    installed=" $(installed_packs | tr '\n' ' ') "
+    # shellcheck disable=SC2086
+    pacman -Si $pkgs 2>/dev/null | awk -F': *' '
+        # "1938.28 KiB" -> bytes
+        function bytes(s,    n, u, m) {
+            split(s, part, " "); n = part[1]; u = part[2]; m = 1
+            if (u == "KiB") m = 1024
+            else if (u == "MiB") m = 1048576
+            else if (u == "GiB") m = 1073741824
+            return sprintf("%d", n * m)
+        }
+        /^Name/ { name = $2 }
+        /^Download Size/ { dl = bytes($2) }
+        /^Installed Size/ {
+            sub(/^tesseract-data-/, "", name)
+            print name "\t" dl "\t" bytes($2)
+        }' | sort -u -t "$(printf '\t')" -k1,1 | while IFS="$(printf '\t')" read -r code dl inst; do
+        [ "$code" = osd ] && continue
+        case $installed in *" $code "*) is=1 ;; *) is=0 ;; esac
+        rm=0
+        [ $is = 1 ] && removable "$code" && rm=1
+        printf '%s\t%s\t%s\t%s\t%s\n' "$code" "$is" "$dl" "$inst" "$rm"
+    done
+}
+
+run_privileged() {
+    verb=$1
+    shift
+    pkgs=
+    for c in "$@"; do pkgs="$pkgs tesseract-data-$c"; done
+    if [ -n "$FAKE" ]; then
+        # shellcheck disable=SC2086
+        exec "$HELPER" "$verb" $pkgs
+    fi
+    if [ -x "$HELPER" ]; then
+        # shellcheck disable=SC2086
+        exec pkexec "$HELPER" "$verb" $pkgs
+    fi
+    if [ "$verb" = install ]; then
+        # shellcheck disable=SC2086
+        exec pkexec pacman -S --needed --noconfirm $pkgs
+    fi
+    # shellcheck disable=SC2086
+    exec pkexec pacman -R --noconfirm $pkgs
+}
+
+cmd=$1
+[ $# -gt 0 ] && shift
+case $cmd in
+list)
+    cmd_list "$@" ;;
+install)
+    check_codes "$@"
+    run_privileged install "$@" ;;
+remove)
+    check_codes "$@"
+    for c in "$@"; do
+        if ! removable "$c"; then
+            echo "@@ERROR protected"
+            echo "error: tesseract-data-$c is needed by the system and can't be removed" >&2
+            exit 3
+        fi
+    done
+    run_privileged remove "$@" ;;
+*)
+    usage ;;
+esac

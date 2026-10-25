@@ -92,6 +92,9 @@ add_custom_target(translations ALL DEPENDS ${QM_FILES} SOURCES ${TS_FILES})
 install(FILES ${QM_FILES} DESTINATION /usr/share/lingmo-screenshot/translations)
 
 install(TARGETS lingmo-screenshot RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR})
+# OCR language packs: list, install and remove (shared with lingmo-settings,
+# Idioma › Idiomas de leitura)
+install(PROGRAMS data/lingmo-ocr-languages DESTINATION /usr/lib/lingmo-screenshot)
 # The package is called lingmo-screenshots: accept that name on the command line too.
 install(CODE "file(CREATE_LINK lingmo-screenshot
     \"\$ENV{DESTDIR}\${CMAKE_INSTALL_PREFIX}/${CMAKE_INSTALL_BINDIR}/lingmo-screenshots\" SYMBOLIC)")

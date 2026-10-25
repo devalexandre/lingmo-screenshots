@@ -1130,7 +1130,7 @@ Item {
             Label {
                 text: !ocr.available
                       ? qsTr("Copying text and Quick redact use tesseract, which runs on this computer: nothing is sent anywhere. Install it from the settings.")
-                      : qsTr("Tesseract is installed, but the language data (%1) is missing. Install it from the settings.").arg(config.ocrLanguages)
+                      : qsTr("Tesseract is installed, but no language data is. Install it from the settings.")
                 color: LingmoUI.Theme.secondaryTextColor
                 wrapMode: Text.WordWrap
                 Layout.fillWidth: true

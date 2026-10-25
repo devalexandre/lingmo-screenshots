@@ -29,6 +29,7 @@
 #include <QDesktopServices>
 #include <QJsonObject>
 #include <QLoggingCategory>
+#include <QCryptographicHash>
 #include <QProcess>
 #include <QScreen>
 #include <QUuid>
@@ -43,8 +44,7 @@ ScreenAsk::ScreenAsk(CaptureSession *session, QObject *parent)
 
 ScreenAsk::~ScreenAsk()
 {
-    if (m_ocrBusy)
-        Application::instance()->ocr()->cancel();
+    // A running OcrJob is a child: it stops with us
     if (m_engine && busy())
         m_engine->send(QJsonObject{{QStringLiteral("type"), QStringLiteral("stop")}});
     if (listening())
@@ -133,45 +133,113 @@ void ScreenAsk::prepare(const QRect &crop)
 void ScreenAsk::startOcr()
 {
     OcrEngine *ocr = Application::instance()->ocr();
-    delete m_ocrWatch;
+    delete m_ocrWatch;   // an OcrJob: deleting it stops tesseract
     m_ocrWatch = nullptr;
-    if (m_ocrBusy)
-        ocr->cancel();
     m_ocrText.clear();
+    m_analysis = Ocr::Analysis();
     m_ocrDone = false;
     m_ocrBusy = false;
 
     if (!ocr->available() || !ocr->hasLanguageData()) {
         // The vision model can still look at the picture
+        m_analysis.status = QStringLiteral("failed");
         m_ocrDone = true;
         emit ocrChanged();
         return;
     }
-    if (ocr->busy())
-        ocr->cancel();
 
-    m_ocrWatch = new QObject(this);
-    QObject *watch = m_ocrWatch;
-    auto finish = [this, watch](const QString &text) {
-        if (watch != m_ocrWatch)
+    // The same pixels with the same packs: the same result
+    QCryptographicHash hash(QCryptographicHash::Sha1);
+    const QImage image = m_image.convertToFormat(QImage::Format_ARGB32);
+    hash.addData(QByteArrayView(reinterpret_cast<const char *>(image.constBits()), image.sizeInBytes()));
+    hash.addData(QByteArray::number(image.width()));
+    hash.addData(ocr->languages().join(QLatin1Char('+')).toUtf8());
+    m_cacheKey = hash.result();
+    const auto cached = m_cache.constFind(m_cacheKey);
+    if (cached != m_cache.constEnd()) {
+        qCInfo(lcAsk) << "OCR from the cache";
+        applyAnalysis(cached.value());
+        return;
+    }
+
+    OcrJob *job = ocr->createJob(this);
+    m_ocrWatch = job;
+    connect(job, &OcrJob::finished, this, [this, job](const Ocr::Analysis &analysis) {
+        if (job != m_ocrWatch)
             return;
         m_ocrWatch = nullptr;
-        watch->deleteLater();
-        m_ocrText = text.trimmed();
-        m_ocrBusy = false;
-        m_ocrDone = true;
-        emit ocrChanged();
-        if (!m_pendingQuestion.isEmpty())
-            send();
-    };
-    connect(ocr, &OcrEngine::textReady, watch, finish);
-    connect(ocr, &OcrEngine::failed, watch, [finish](const QString &error) {
-        qCInfo(lcAsk).noquote() << "OCR failed:" << error;
-        finish(QString());
+        job->deleteLater();
+        if (m_cache.size() > 16)
+            m_cache.clear();
+        m_cache.insert(m_cacheKey, analysis);
+        applyAnalysis(analysis);
     });
     m_ocrBusy = true;
     emit ocrChanged();
-    ocr->recognizeText(m_image);
+    job->start(m_image);
+}
+
+void ScreenAsk::applyAnalysis(const Ocr::Analysis &analysis)
+{
+    m_analysis = analysis;
+    // Only text that can be trusted goes anywhere (the model, the clipboard,
+    // the web search): garbage read with the wrong language once made the
+    // model "translate" a story that wasn't there
+    m_ocrText = analysis.reliable() ? analysis.text.trimmed() : QString();
+    qCInfo(lcAsk).noquote() << "OCR" << analysis.status << analysis.script << analysis.totalMs << "ms";
+    m_ocrBusy = false;
+    m_ocrDone = true;
+    emit ocrChanged();
+    if (!m_pendingQuestion.isEmpty())
+        send();
+}
+
+QString ScreenAsk::ocrLanguageName() const
+{
+    return m_analysis.script.isEmpty() ? QString() : Ocr::scriptName(m_analysis.script);
+}
+
+int ScreenAsk::missingSizeMb() const
+{
+    int kib = 0;
+    for (const QString &code : m_analysis.missing)
+        kib += Ocr::packDownloadKiB(code);
+    return kib > 0 ? qMax(1, (kib + 512) / 1024) : 0;
+}
+
+bool ScreenAsk::installingPack() const
+{
+    return Application::instance()->ocr()->installing();
+}
+
+QString ScreenAsk::installProgress() const
+{
+    return Application::instance()->ocr()->installStatus();
+}
+
+void ScreenAsk::installReadingPack()
+{
+    OcrEngine *ocr = Application::instance()->ocr();
+    if (m_analysis.missing.isEmpty() || ocr->installing())
+        return;
+    auto *once = new QObject(this);
+    connect(ocr, &OcrEngine::installingChanged, once, [this] { emit installChanged(); });
+    connect(ocr, &OcrEngine::installFinished, once, [this, once](bool ok, const QString &text) {
+        once->deleteLater();
+        emit installChanged();
+        if (!ok) {
+            if (!text.isEmpty())
+                emit message(text, true);
+            return;
+        }
+        emit message(tr("Reading pack installed. Reading the selection again…"), false);
+        // Read again at once with the new pack (the cache key has the packs)
+        m_cache.clear();
+        if (!m_image.isNull())
+            startOcr();
+    });
+    ocr->installLanguages(m_analysis.missing);
+    emit installChanged();
 }
 
 QString ScreenAsk::chipLabel(const QString &kind) const
@@ -205,10 +273,15 @@ void ScreenAsk::askChip(const QString &kind)
         copyText();
         return;
     }
-    ask(ScreenAskCore::chipQuestion(kind));
+    askQuestion(ScreenAskCore::chipQuestion(kind), kind);
 }
 
 void ScreenAsk::ask(const QString &text)
+{
+    askQuestion(text, QString());
+}
+
+void ScreenAsk::askQuestion(const QString &text, const QString &intent)
 {
     const QString question = text.trimmed();
     if (question.isEmpty() || m_image.isNull())
@@ -221,6 +294,7 @@ void ScreenAsk::ask(const QString &text)
         return;
     m_question = question;
     m_pendingQuestion = question;
+    m_intent = intent;
     m_answer.clear();
     emit answerChanged();
     if (!m_ocrDone) {
@@ -242,7 +316,14 @@ void ScreenAsk::send()
         {QStringLiteral("conversation_id"), m_conversation},
         {QStringLiteral("message"), m_pendingQuestion},
         {QStringLiteral("image"), QString::fromLatin1(data.toBase64())},
+        // Only text that can be trusted; otherwise how the reading went
         {QStringLiteral("ocr_text"), m_ocrText},
+        {QStringLiteral("ocr_status"), m_analysis.status},
+        {QStringLiteral("ocr_script"), m_analysis.script},
+        {QStringLiteral("ocr_confidence"), qRound(m_analysis.quality.meanConfidence)},
+        {QStringLiteral("intent"), m_intent},
+        // The answer's language: the system's
+        {QStringLiteral("language"), ScreenAskCore::languageName()},
         {QStringLiteral("source"), QJsonObject{{QStringLiteral("window"), m_windowTitle},
                                                {QStringLiteral("width"), m_image.width()},
                                                {QStringLiteral("height"), m_image.height()}}},
@@ -351,10 +432,15 @@ bool ScreenAsk::copyText()
     }
     if (mode() == QLatin1String("vision")) {
         m_copyAfter = true;
-        ask(ScreenAskCore::chipQuestion(QStringLiteral("copy")));
+        askQuestion(ScreenAskCore::chipQuestion(QStringLiteral("copy")), QStringLiteral("copy"));
         return false;
     }
-    emit message(tr("No text was found in the selection."), true);
+    if (m_analysis.status == QLatin1String("missing"))
+        emit message(tr("To read %1, install the reading pack first.").arg(ocrLanguageName()), true);
+    else if (m_analysis.status == QLatin1String("unreliable"))
+        emit message(tr("The text in the selection couldn't be read reliably."), true);
+    else
+        emit message(tr("No text was found in the selection."), true);
     return false;
 }
 
